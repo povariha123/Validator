@@ -18,7 +18,32 @@
             width: 100%;
             height: 200px;
             margin-bottom: 20px;
+            resize: vertical;
+            font-family: monospace;
         }
+        textarea.numbered {
+            counter-reset: line;
+            padding-left: 3em;
+            background: linear-gradient(to right, #f9f9f9 3em, white 3em);
+            background-attachment: local;
+            white-space: pre;
+        }
+        textarea.numbered::-webkit-scrollbar {
+            width: 0;
+        }
+        textarea.numbered {
+            line-height: 1.5;
+        }
+        textarea.numbered:focus {
+            outline: none;
+        }
+        textarea.numbered::before {
+            counter-increment: line;
+            content: counter(line);
+            position: absolute;
+            left: 10px;
+        }
+
         button {
             padding: 10px 20px;
             background-color: #007bff;
@@ -44,7 +69,7 @@
 <div class="container">
     <h1>Command Validator</h1>
     <p>Paste your <strong>commands.txt</strong> content below and click "Validate" to check for errors.</p>
-    <textarea id="commandsInput" placeholder="Paste your commands.txt content here..."></textarea>
+    <textarea id="commandsInput" class="numbered" placeholder="Paste your commands.txt content here..."></textarea>
     <button id="validateButton">Validate</button>
     <div id="output" class="output"></div>
 </div>
@@ -104,10 +129,10 @@
     async function parseCommands(input) {
         try {
             let content = input;
-            content = content.replace(/\{\s*clone\s*=\s*\{(.*?)\}\s*\},/g, (m, p1) => `clone = [{${p1.trim()}}],`);
-            content = content.replace(/clone\s*=\s*{([^}]+)}/g, (m, p1) => `clone = [${p1.trim()}]`);
+            content = content.replace(/\{\s*clone\s*=\s*\{(.*?)\}\s*\},/g, (m, p1) => `clone = [${p1.trim()}],`);
+            content = content.replace(/clone\s*=\s*{([^}]+)}/g, (m, p1) => `clone = [${p1.trim().split(',').map(x => x.trim())}]`);
             content = content.replace(/(\w+)\s*=\s*/g, '"$1": ');
-            content = content.replace(/,(\s*})/g, '$1');
+            content = content.replace(/,\s*}/g, '}');
             content = `[${content}]`;
             return JSON.parse(content);
         } catch (error) {
@@ -127,7 +152,8 @@
             for (let i = 0; i < commands.length; i++) {
                 const commandErrors = await validateCommand(commands[i], validators);
                 if (commandErrors.length > 0) {
-                    allErrors.push(`Line ${i + 1}:\n` + commandErrors.join('\n'));
+                    allErrors.push(`Line ${i + 1}:
+` + commandErrors.join('\n'));
                 }
             }
 
