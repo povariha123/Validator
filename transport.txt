@@ -1,0 +1,15 @@
+Sports_car  
+Ambulance_car  
+Moped  
+Cheap_car  
+Expensive_car  
+Limousine  
+Postman  
+Van  
+Family_SUV  
+Police_car  
+Black_SUV  
+Black_van  
+Taxi  
+Bus  
+Fire_truck
