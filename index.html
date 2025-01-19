@@ -290,8 +290,6 @@
       // Регуляркой вынимаем param и value
       const match = lineNoComma.match(/^(\w+)\s*=\s*(.+)$/);
 
-// После:
-      const match = lineNoComma.match(/^\s*(\w+)\s*=\s*(.+)$/);
       if (!match) {
         syntaxErrors.push({
           lineNum,
