@@ -1,61 +1,108 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <title>Проверка скрипта команд</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Командный Парсер</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
+
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #f4f4f9;
+      color: #333;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .input-section {
+      margin-bottom: 20px;
+    }
+
+    label {
+      font-weight: bold;
+      display: block;
+      margin-bottom: 10px;
+    }
+
     textarea {
       width: 100%;
-      box-sizing: border-box;
-      font-family: monospace;
-      font-size: 14px;
-    }
-    #output {
-      margin-top: 20px;
+      height: 200px;
       padding: 10px;
-      border: 1px solid #ccc;
-      white-space: pre-wrap;
-      background: #f9f9f9;
+      font-size: 16px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      resize: vertical;
     }
+
+    .buttons {
+      text-align: center;
+    }
+
     button {
-      margin-top: 10px;
-      padding: 8px 16px;
+      padding: 10px 20px;
+      background-color: #007BFF;
+      color: white;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
       cursor: pointer;
     }
-    .error {
-      color: red;
-      font-weight: bold;
+
+    button:hover {
+      background-color: #0056b3;
     }
-    .success {
-      color: green;
-      font-weight: bold;
+
+    .output {
+      margin-top: 30px;
+    }
+
+    pre {
+      background-color: #e9ecef;
+      padding: 20px;
+      border-radius: 5px;
+      font-size: 14px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      border: 1px solid #ddd;
     }
   </style>
 </head>
 <body>
+  <div class="container">
+    <h1>Командный Парсер</h1>
+    
+    <div class="input-section">
+      <label for="commandInput">Введите команды:</label>
+      <textarea id="commandInput" placeholder="Введите команды в формате: character = 'Aiden',..."></textarea>
+    </div>
 
-<h1>Проверка команд</h1>
+    <div class="buttons">
+      <button id="parseButton">Парсить</button>
+    </div>
 
-<!-- Кнопка для загрузки списков (можно нажимать повторно, если надо) -->
-<button id="loadDataBtn">Загрузить списки из файлов</button>
+    <div class="output">
+      <h2>Результат</h2>
+      <pre id="resultOutput"></pre>
+    </div>
+  </div>
 
-<p>Введите команды (в формате, как в вашем Python-скрипте):</p>
-<textarea id="commandsInput" rows="12" placeholder="Вставьте сюда содержимое, которое раньше хранилось в commands.txt"></textarea>
-<br>
-<button id="checkBtn">Проверить</button>
-
-<div id="output"></div>
-
-<script>
-  /*************************************************************************/
-  /*  1) Загрузка допустимых значений из внешних файлов (по ссылкам)       */
-  /*************************************************************************/
-  // Здесь вместо URL_... подставьте свои ссылки на txt-файлы
-  const FILE_LINKS = {
+  <script>
+    // Подключаем все внешние данные по ссылкам
+    const LINKS = {
     characters:         "https://raw.githubusercontent.com/povariha123/Validator/refs/heads/main/characters.txt",
     points:             "https://raw.githubusercontent.com/povariha123/Validator/refs/heads/main/points.txt",
     points_without_seat:"https://raw.githubusercontent.com/povariha123/Validator/refs/heads/main/points_without_seat.txt",
@@ -64,389 +111,99 @@
     tools:              "https://raw.githubusercontent.com/povariha123/Validator/refs/heads/main/tools.txt",
     emotions:           "https://raw.githubusercontent.com/povariha123/Validator/refs/heads/main/emotions.txt",
     car_points:         "https://raw.githubusercontent.com/povariha123/Validator/refs/heads/main/deduplicated_car_points.txt"
-  };
+    };
 
-  // Глобальные массивы с данными
-  let CHARACTERS = [];
-  let POINTS = [];
-  let POINTS_WITHOUT_SEAT = [];
-  let POINTS_WITH_SEAT = [];
-  let TRANSPORT = [];
-  let TOOLS = [];
-  let EMOTIONS = [];
-  let CAR_POINTS = [];
+    let VALIDATORS = {};
 
-  /**
-   * Функция загружает текст по ссылке и возвращает массив строк (убирая пустые).
-   */
-  function loadValues(url) {
-    return fetch(url)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`Не удалось загрузить: ${url}, статус: ` + response.status);
-        }
-        return response.text();
-      })
-      .then(text => {
-        // Разбиваем на строки, убираем пробелы и пустые
-        return text
-          .split('\n')
-          .map(line => line.trim())
-          .filter(line => line !== '');
-      });
-  }
+    // Загружаем данные с внешних ссылок
+    const loadValuesFromFile = async (url) => {
+      const response = await fetch(url);
+      const text = await response.text();
+      return text.split("\n").map(line => line.trim()).filter(line => line !== "");
+    };
 
-  /**
-   * Загрузка всех списков (characters, points и т.п.) параллельно.
-   * Возвращает Promise, который завершается, когда все данные загружены.
-   */
-  function loadAllData() {
-    const promises = [];
+    // Функция загрузки всех данных
+    const loadData = async () => {
+      const characters = await loadValuesFromFile(LINKS.characters);
+      const points = await loadValuesFromFile(LINKS.points);
+      const pointsWithoutSeat = await loadValuesFromFile(LINKS.pointsWithoutSeat);
+      const pointsWithSeat = await loadValuesFromFile(LINKS.pointsWithSeat);
+      const transport = await loadValuesFromFile(LINKS.transport);
+      const tools = await loadValuesFromFile(LINKS.tools);
+      const emotions = await loadValuesFromFile(LINKS.emotions);
+      const carPoints = await loadValuesFromFile(LINKS.carPoints);
 
-    promises.push(
-      loadValues(FILE_LINKS.characters).then(data => { CHARACTERS = data; })
-    );
-    promises.push(
-      loadValues(FILE_LINKS.points).then(data => { POINTS = data; })
-    );
-    promises.push(
-      loadValues(FILE_LINKS.points_without_seat).then(data => { POINTS_WITHOUT_SEAT = data; })
-    );
-    promises.push(
-      loadValues(FILE_LINKS.points_with_seat).then(data => { POINTS_WITH_SEAT = data; })
-    );
-    promises.push(
-      loadValues(FILE_LINKS.transport).then(data => { TRANSPORT = data; })
-    );
-    promises.push(
-      loadValues(FILE_LINKS.tools).then(data => { TOOLS = data; })
-    );
-    promises.push(
-      loadValues(FILE_LINKS.emotions).then(data => { EMOTIONS = data; })
-    );
-    promises.push(
-      loadValues(FILE_LINKS.car_points).then(data => { CAR_POINTS = data; })
-    );
+      VALIDATORS = {
+        "character": characters,
+        "teleport": points,
+        "walk": pointsWithoutSeat,
+        "sit": pointsWithSeat,
+        "useTransport": transport,
+        "camera": [...characters, ...transport],
+        "lookAt": [...characters, ...transport],
+        "equipTool": [...tools, "None"],
+        "emotion": emotions,
+        "clone": (value) => Array.isArray(value) && value.length === 2 && transport.includes(value[0]) && carPoints.includes(value[1]),
+      };
+    };
 
-    return Promise.all(promises);
-  }
-
-  /*************************************************************************/
-  /*  2) Валидация параметров (набор валидаторов)                          */
-  /*************************************************************************/
-  const VALIDATORS = {
-    "character": (value) => CHARACTERS.includes(value),
-    "teleport":  (value) => POINTS.includes(value),
-    "walk":      (value) => POINTS_WITHOUT_SEAT.includes(value),
-    "sit":       (value) => POINTS_WITH_SEAT.includes(value),
-    "useTransport": (value) => TRANSPORT.includes(value),
-    "camera":    (value) => [...CHARACTERS, ...TRANSPORT].includes(value),
-    "lookAt":    (value) => [...CHARACTERS, ...TRANSPORT].includes(value),
-    "equipTool": (value) => [...TOOLS, "None"].includes(value),
-    "emotion":   (value) => EMOTIONS.includes(value),
-    "clone":     (value) => {
-      // value должен быть массивом из 2 элементов, где [0] в TOOLS+TRANSPORT, [1] в CAR_POINTS
-      // В нашем случае при парсинге clone = { "Val1", "Val2" } мы храним это как массив
-      if (!Array.isArray(value) || value.length !== 2) return false;
-      const [first, second] = value;
-      const validFirst = [...TOOLS, ...TRANSPORT].includes(first);
-      const validSecond = CAR_POINTS.includes(second);
-      return validFirst && validSecond;
-    }
-  };
-
-  /*************************************************************************/
-  /*  3) Функции для парсинга командных блоков                             */
-  /*************************************************************************/
-
-  /**
-   * Разбивает строки на блоки { ... }
-   * Возвращает массив блоков:
-   *  [
-   *    {
-   *      startLine: номер строки, где встретили '{',
-   *      endLine: номер строки, где встретили '}' или '},',
-   *      lines: [ {lineNum, text}, ... ] — содержимое блока,
-   *      closingText: либо '}' либо '},'
-   *    },
-   *    ...
-   *  ]
-   */
-  function extractBlocks(lines) {
-    const blocks = [];
-    let inBlock = false;
-    let blockLines = [];
-    let blockStartLine = null;
-
-    lines.forEach(({ lineNum, text }) => {
-      const stripped = text.trim();
-      if (stripped === '{') {
-        // Начало блока
-        inBlock = true;
-        blockStartLine = lineNum;
-        blockLines = [];
-        return;
+    // Регулярное выражение для проверки правильности формата param=value
+    const parseLine = (line) => {
+      const regex = /^\s*(\w+)\s*=\s*(.+)$/;
+      const match = line.match(regex);
+      if (match) {
+        const param = match[1].trim();
+        const value = match[2].trim();
+        return { param, value };
       }
+      return null;
+    };
 
-      if (stripped === '}' || stripped === '},') {
-        // Конец блока
-        if (inBlock) {
-          blocks.push({
-            startLine: blockStartLine,
-            endLine: lineNum,
-            lines: [...blockLines],
-            closingText: stripped
-          });
-        }
-        inBlock = false;
-        blockLines = [];
-        blockStartLine = null;
-        return;
-      }
+    // Основная функция парсинга команд
+    const parseCommands = (commandsText) => {
+      const lines = commandsText.split("\n");
+      const parsedParams = [];
+      let errors = [];
 
-      if (inBlock) {
-        blockLines.push({ lineNum, text });
-      }
-    });
-
-    return blocks;
-  }
-
-  /**
-   * Проверка синтаксиса одного блока и парсинг его строк в объект параметров.
-   * Возвращает { syntaxErrors, parsedParams }.
-   *   syntaxErrors: массив объектов { lineNum, type: 'syntax', message }
-   *   parsedParams: { param: { value, lineNum }, ... }
-   */
-  function checkBlockSyntaxAndParse(block, blockIndex, totalBlocks) {
-    const syntaxErrors = [];
-    const parsedParams = {};
-
-    const closingLineNum = block.endLine;
-    const closingText = block.closingText;
-    const isLastBlock = (blockIndex === totalBlocks - 1);
-
-    // 1) Проверка, чем заканчивается блок: последний должен быть '}', не последний - '},'
-    if (isLastBlock) {
-      if (closingText !== '}') {
-        syntaxErrors.push({
-          lineNum: closingLineNum,
-          type: "syntax",
-          message: `Последний блок должен завершаться '}', а не '${closingText}'`
-        });
-      }
-    } else {
-      if (closingText !== '},') {
-        syntaxErrors.push({
-          lineNum: closingLineNum,
-          type: "syntax",
-          message: `Между блоками должна быть запятая: ожидается '},' вместо '${closingText}'`
-        });
-      }
-    }
-
-    // 2) Отберём значимые строки (убираем пустые и комментарии вида '--...')
-    const rawParamLines = block.lines.filter(({ text }) => {
-      const t = text.trim();
-      if (!t) return false;
-      if (t.startsWith('--')) return false;
-      return true;
-    });
-
-    // 3) Проверяем запятые и парсим param=...
-    rawParamLines.forEach((item, i) => {
-      const { lineNum, text } = item;
-      const lineRstrip = text.trimRight();
-      const endsWithComma = lineRstrip.endsWith(',');
-      const isLastParamLine = (i === rawParamLines.length - 1);
-
-      // Проверка: должен ли быть '='
-      if (!lineRstrip.includes('=')) {
-        syntaxErrors.push({
-          lineNum,
-          type: "syntax",
-          message: "Строка внутри блока не содержит '=' (ожидается param = value)."
-        });
-        return;
-      }
-
-      // Проверка запятых: все, кроме последней, должны заканчиваться запятой
-      if (!isLastParamLine && !endsWithComma) {
-        syntaxErrors.push({
-          lineNum,
-          type: "syntax",
-          message: "Каждая строка параметров, кроме последней, должна заканчиваться запятой."
-        });
-      } else if (isLastParamLine && endsWithComma) {
-        syntaxErrors.push({
-          lineNum,
-          type: "syntax",
-          message: "Последняя строка параметров в блоке не должна заканчиваться запятой."
-        });
-      }
-
-      // Убираем запятую, если была
-      const lineNoComma = endsWithComma ? lineRstrip.slice(0, -1).trimRight() : lineRstrip;
-      // Регуляркой вынимаем param и value
-      const match = lineNoComma.match(/^(\w+)\s*=\s*(.+)$/);
-
-      if (!match) {
-        syntaxErrors.push({
-          lineNum,
-          type: "syntax",
-          message: `Не удалось распарсить как 'param = value': ${lineRstrip}`
-        });
-        return;
-      }
-
-      const param = match[1].trim();
-      let rawValue = match[2].trim();
-
-      // Специальный случай clone = { ... }
-      // Например: clone = { "Val1", "Val2" }
-      if (param === 'clone') {
-        const cloneMatch = rawValue.match(/^\{(.*)\}$/);
-        if (cloneMatch) {
-          const inside = cloneMatch[1].trim(); // будет что-то вроде `"Val1", "Val2"`
-          // Разобьём по запятым и уберём кавычки
-          const items = inside.split(',').map(x => x.trim().replace(/^"(.*)"$/, '$1'));
-          parsedParams[param] = { value: items, lineNum };
-          return;
-        }
-      }
-
-      // Обычный случай: строка в кавычках или без
-      // Если значение в "..."
-      if (rawValue.startsWith('"') && rawValue.endsWith('"')) {
-        rawValue = rawValue.slice(1, -1); // убираем кавычки
-      }
-
-      parsedParams[param] = { value: rawValue, lineNum };
-    });
-
-    return { syntaxErrors, parsedParams };
-  }
-
-  /**
-   * Проверка значений параметров по валидаторам.
-   * Возвращает массив ошибок { lineNum, param, invalidValue }.
-   */
-  function validateParsedParams(parsedParams) {
-    const errors = [];
-    for (const [param, { value, lineNum }] of Object.entries(parsedParams)) {
-      // Проверяем, есть ли такой параметр в валидаторах
-      const validator = VALIDATORS[param];
-      if (!validator) {
-        // Параметр неизвестен
-        errors.push({ lineNum, param, invalidValue: value });
-        continue;
-      }
-      // Проверяем само значение
-      const isValid = validator(value);
-      if (!isValid) {
-        errors.push({ lineNum, param, invalidValue: value });
-      }
-    }
-    return errors;
-  }
-
-  /*************************************************************************/
-  /*  4) Основная функция проверки (вместо main())                         */
-  /*************************************************************************/
-  function checkCommands(commandsText) {
-    // Разбиваем весь ввод на строки
-    const lines = commandsText.split('\n')
-      .map((l, i) => ({ lineNum: i + 1, text: l }));
-
-    // 1) Выделяем блоки
-    const blocks = extractBlocks(lines);
-    if (!blocks.length) {
-      return ["Не найдено ни одного блока { ... }."];
-    }
-
-    let allErrors = [];
-    let allParsedParams = [];
-
-    // 2) Синтаксическая проверка и парсинг
-    blocks.forEach((block, i) => {
-      const { syntaxErrors, parsedParams } = checkBlockSyntaxAndParse(block, i, blocks.length);
-      allErrors = allErrors.concat(syntaxErrors);
-      allParsedParams.push(parsedParams);
-    });
-
-    // 3) Валидация значений
-    allParsedParams.forEach(parsedParams => {
-      const paramErrors = validateParsedParams(parsedParams);
-      allErrors = allErrors.concat(
-        paramErrors.map(e => ({ lineNum: e.lineNum, param: e.param, invalidValue: e.invalidValue }))
-      );
-    });
-
-    // 4) Формируем итог
-    if (!allErrors.length) {
-      return ["Ошибок не найдено."];
-    } else {
-      // Сортируем ошибки по номеру строки
-      allErrors.sort((a, b) => a.lineNum - b.lineNum);
-      // Преобразуем в человекочитаемый текст
-      const resultLines = ["Обнаружены ошибки:"];
-      allErrors.forEach(err => {
-        if (err.type === "syntax") {
-          resultLines.push(`Строка ${err.lineNum}: ${err.message}`);
-        } else if (err.param) {
-          resultLines.push(
-            `Строка ${err.lineNum}: Недопустимое значение параметра '${err.param}' -> '${err.invalidValue}'`
-          );
+      lines.forEach((line, index) => {
+        const parsedLine = parseLine(line);
+        if (parsedLine) {
+          const { param, value } = parsedLine;
+          if (VALIDATORS[param] && VALIDATORS[param].includes(value)) {
+            parsedParams.push({ param, value });
+          } else {
+            errors.push(`Строка ${index + 1}: Недопустимое значение параметра '${param}' -> '${value}'`);
+          }
         } else {
-          // На всякий случай
-          resultLines.push(`Строка ${err.lineNum}: Неизвестная ошибка`);
+          errors.push(`Строка ${index + 1}: Ошибка синтаксиса — строка не соответствует формату 'param = value'.`);
         }
       });
-      return resultLines;
-    }
-  }
 
-  /*************************************************************************/
-  /*  5) Вешаем обработчики на кнопки                                      */
-  /*************************************************************************/
-  document.getElementById('loadDataBtn').addEventListener('click', () => {
-    const outputEl = document.getElementById('output');
-    outputEl.textContent = "Загрузка списков...";
-    loadAllData()
-      .then(() => {
-        outputEl.textContent = "Списки успешно загружены!";
-        outputEl.className = "success";
-      })
-      .catch(err => {
-        outputEl.textContent = "Ошибка при загрузке списков: " + err.message;
-        outputEl.className = "error";
-      });
-  });
+      return { parsedParams, errors };
+    };
 
-  document.getElementById('checkBtn').addEventListener('click', () => {
-    const outputEl = document.getElementById('output');
-    const commandsText = document.getElementById('commandsInput').value;
+    // Обработчик клика по кнопке "Парсить"
+    document.getElementById("parseButton").addEventListener("click", () => {
+      const commandsText = document.getElementById("commandInput").value;
+      if (!commandsText) {
+        alert("Пожалуйста, введите команды.");
+        return;
+      }
 
-    // Запускаем проверку
-    const results = checkCommands(commandsText);
+      const { parsedParams, errors } = parseCommands(commandsText);
 
-    // Вывод
-    if (results.length === 1 && results[0] === "Ошибок не найдено.") {
-      outputEl.textContent = results[0];
-      outputEl.className = "success";
-    } else if (results.length === 1 && results[0].startsWith("Не найдено")) {
-      // когда не найдено ни одного блока
-      outputEl.textContent = results[0];
-      outputEl.className = "";
-    } else {
-      outputEl.textContent = results.join('\n');
-      // если есть слово "Ошибка" - сделаем красным, иначе обычный
-      outputEl.className = results.some(line => line.includes("Ошибка") || line.includes("Недопустимое"))
-        ? "error"
-        : "";
-    }
-  });
-</script>
+      const resultOutput = document.getElementById("resultOutput");
+      resultOutput.textContent = "";
 
+      if (errors.length > 0) {
+        resultOutput.textContent = errors.join("\n");
+      } else {
+        resultOutput.textContent = "Ошибок не найдено.\n\nРаспарсенные параметры:\n" + JSON.stringify(parsedParams, null, 2);
+      }
+    });
+
+    // Загружаем данные при старте
+    loadData();
+  </script>
 </body>
 </html>
